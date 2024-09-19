@@ -40,7 +40,8 @@ hello_world_main.o: \
  /home/david/esp/ESP8266_RTOS_SDK/components/esp8266/include/driver/gpio.h \
  /home/david/esp/ESP8266_RTOS_SDK/components/esp8266/include/esp8266/pin_mux_register.h \
  /home/david/esp/ESP8266_RTOS_SDK/components/esp8266/include/esp8266/eagle_soc.h \
- /home/david/esp/ESP8266_RTOS_SDK/components/esp8266/include/esp8266/gpio_register.h
+ /home/david/esp/ESP8266_RTOS_SDK/components/esp8266/include/esp8266/gpio_register.h \
+ /home/david/esp/ESP8266_RTOS_SDK/components/esp8266/include/driver/adc.h
 
 /home/david/esp/ESP8266_RTOS_SDK/components/freertos/include/freertos/FreeRTOS.h:
 
@@ -123,4 +124,6 @@ hello_world_main.o: \
 /home/david/esp/ESP8266_RTOS_SDK/components/esp8266/include/esp8266/eagle_soc.h:
 
 /home/david/esp/ESP8266_RTOS_SDK/components/esp8266/include/esp8266/gpio_register.h:
+
+/home/david/esp/ESP8266_RTOS_SDK/components/esp8266/include/driver/adc.h:
 /home/david/esp/projects/fishing/main/./hello_world_main.c:

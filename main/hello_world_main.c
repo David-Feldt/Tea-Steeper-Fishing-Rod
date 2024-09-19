@@ -12,6 +12,7 @@
 #include "esp_system.h"
 #include "esp_spi_flash.h"
 #include "driver/i2c.h"
+#include "driver/adc.h"
 
 #define SSD1306_I2C_ADDRESS 0x3C  // SSD1306 I2C address
 
@@ -41,6 +42,9 @@
 
 #define SSD1306_WIDTH  128
 #define SSD1306_HEIGHT 32
+
+#define BUTTON_GPIO                   0
+
 
 const uint8_t font5x7_basic[][5] = {
     {0x00, 0x00, 0x00, 0x00, 0x00}, // 0x20 ' ' (space)
@@ -169,64 +173,6 @@ esp_err_t ssd1306_write_command(uint8_t command) {
     i2c_cmd_link_delete(cmd);
     return ret;
 }
-
-
-// esp_err_t ssd1306_write_command(uint8_t command) {
-//     uint8_t buffer[2] = {0x00, command};
-//     esp_err_t ret;
-//     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-//     ret = i2c_master_start(cmd); if (ret != ESP_OK) return ret;
-//     ret = i2c_master_write_byte(cmd, (SSD1306_I2C_ADDRESS << 1) | I2C_MASTER_WRITE, true); if (ret != ESP_OK) return ret;
-//     ret = i2c_master_write(cmd, buffer, sizeof(buffer), true); if (ret != ESP_OK) return ret;// Co = 0, D/C = 0 for command
-//     ret = i2c_master_stop(cmd); if (ret != ESP_OK) return ret;
-//     ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_RATE_MS); if (ret != ESP_OK) return ret;
-//     i2c_cmd_link_delete(cmd);
-//     return ESP_OK;
-// }
-
-// esp_err_t ssd1306_write_data(uint8_t data) {
-//     uint8_t buffer[2] = {0x04, data};
-//     esp_err_t ret;
-//     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-//     ret = i2c_master_start(cmd);
-//     ret = i2c_master_write_byte(cmd, (SSD1306_I2C_ADDRESS << 1) | I2C_MASTER_WRITE, true); if (ret != ESP_OK) return ret;
-//     ret = i2c_master_write(cmd, buffer, sizeof(buffer), true); if (ret != ESP_OK) return ret;// Co = 0, D/C = 0 for command
-//     ret = i2c_master_stop(cmd); if (ret != ESP_OK) return ret;
-//     ret = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 1000 / portTICK_RATE_MS); if (ret != ESP_OK) return ret;
-//     i2c_cmd_link_delete(cmd);
-//     return ESP_OK;
-// }
-
-// void ssd1306_init() {
-//     ssd1306_write_command(0xAE); // Display off
-//     ssd1306_write_command(0x20); // Set Memory Addressing Mode
-//     ssd1306_write_command(0x10); // 00,Horizontal Addressing Mode; 01,Vertical Addressing Mode;
-//     ssd1306_write_command(0xB0); // Set Page Start Address for Page Addressing Mode,0-7
-//     ssd1306_write_command(0xC8); // Set COM Output Scan Direction
-//     ssd1306_write_command(0x00); // Set low column address
-//     ssd1306_write_command(0x10); // Set high column address
-//     ssd1306_write_command(0x40); // Set start line address
-//     ssd1306_write_command(0x81); // Set contrast control register
-//     ssd1306_write_command(0xFF);
-//     ssd1306_write_command(0xA1); // Set segment re-map 0 to 127
-//     ssd1306_write_command(0xA6); // Set normal display
-//     ssd1306_write_command(0xA8); // Set multiplex ratio(1 to 64)
-//     ssd1306_write_command(0x3F); //
-//     ssd1306_write_command(0xA4); // 0xa4,Output follows RAM content;0xa5,Output ignores RAM content
-//     ssd1306_write_command(0xD3); // Set display offset
-//     ssd1306_write_command(0x00); // No offset
-//     ssd1306_write_command(0xD5); // Set display clock divide ratio/oscillator frequency
-//     ssd1306_write_command(0xF0); // Set divide ratio
-//     ssd1306_write_command(0xD9); // Set pre-charge period
-//     ssd1306_write_command(0x22);
-//     ssd1306_write_command(0xDA); // Set com pins hardware configuration
-//     ssd1306_write_command(0x12);
-//     ssd1306_write_command(0xDB); // Set vcomh
-//     ssd1306_write_command(0x20); // 0x20,0.77xVcc
-//     ssd1306_write_command(0x8D); // Set DC-DC enable
-//     ssd1306_write_command(0x14);
-//     ssd1306_write_command(0xAF); // Turn on SSD1306 panel
-// }
 
 esp_err_t ssd1306_init() {
     esp_err_t ret;
@@ -432,6 +378,31 @@ void ssd1306_test_pattern() {
     }
 }
 
+static void adc_task()
+{
+    int x;
+    uint16_t adc_data[100];
+
+    while (1) {
+        if (ESP_OK == adc_read(&adc_data[0])) {
+            printf("adc read: %d\r\n", adc_data[0]);
+            fflush(stdout);
+        }
+
+        printf("adc read fast:\r\n");
+        fflush(stdout);
+
+        if (ESP_OK == adc_read_fast(adc_data, 100)) {
+            for (x = 0; x < 100; x++) {
+                printf("%d\n", adc_data[x]);
+            }
+        }
+
+        vTaskDelay(1000 / portTICK_RATE_MS);
+    }
+}
+
+
 void app_main()
 {
     i2c_config_t i2c_conf = {
@@ -444,6 +415,22 @@ void app_main()
         // .clk_stretch_tick = I2C_MASTER_FREQ_HZ,
     };
 
+    gpio_config_t io_conf = {
+        .intr_type = GPIO_INTR_DISABLE,
+        .mode = GPIO_MODE_INPUT,
+        .pin_bit_mask = (1ULL << BUTTON_GPIO),
+        .pull_down_en = 0,
+        .pull_up_en = 1,
+    };
+
+    adc_config_t adc_conf = {
+        .mode = ADC_READ_TOUT_MODE,
+        .clk_div = 8,
+    };
+    ESP_ERROR_CHECK(adc_init(&adc_conf));
+
+
+    gpio_config(&io_conf);
     esp_err_t ret;
     ret = i2c_driver_install(I2C_MASTER_NUM, I2C_MODE_MASTER);
     if (ret != ESP_OK) {
@@ -478,18 +465,41 @@ void app_main()
     ssd1306_clear_display();
 
     vTaskDelay(1000 / portTICK_PERIOD_MS);  // Wait 1 second
-    ssd1306_write_string("Harkirat",0,0);
+    ssd1306_write_string("Marhsa is the best",0,0);
 
+    int button_state;
+    int last_button_state = -1;
+    printf("Polling for button\n");
+    fflush(stdout);  // Flush the output buffer
+
+    // while(1){
+    //     button_state = gpio_get_level(BUTTON_GPIO);
+    //     if(button_state != last_button_state){
+    //         if(button_state == 1){
+    //            printf("Actual Button pressed\n");
+    //             printf("Button state: %d\n", button_state); 
+    //         }
+    //         fflush(stdout);
+    //         last_button_state = button_state;
+    //         vTaskDelay(1000 / portTICK_PERIOD_MS);  // Wait 1 second
+    //     }
+    // }
+
+    xTaskCreate(adc_task, "adc_task", 1024, NULL, 5, NULL);
+    while(1){
+        vTaskDelay(1000 / portTICK_PERIOD_MS);  // Wait 1 second
+
+    }
     printf("Hello Board!\n");  /* Print chip information */
-    esp_chip_info_t chip_info;
-    esp_chip_info(&chip_info);
-    printf("This is ESP8266 chip with %d CPU cores, WiFi, ",
-            chip_info.cores);
+    // esp_chip_info_t chip_info;
+    // esp_chip_info(&chip_info);
+    // printf("This is ESP8266 chip with %d CPU cores, WiFi, ",
+    //         chip_info.cores);
 
-    printf("silicon revision %d, ", chip_info.revision);
+    // printf("silicon revision %d, ", chip_info.revision);
 
-    printf("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
-            (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
+    // printf("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
+    //         (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
     for (int i = 10; i >= 0; i--) {
         printf("Restarting in %d seconds...\n", i);
