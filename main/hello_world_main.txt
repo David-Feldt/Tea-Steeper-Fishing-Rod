@@ -45,6 +45,32 @@
 
 #define BUTTON_GPIO                   0
 
+#define IN1_PIN 14
+#define IN2_PIN 12
+#define IN3_PIN 13
+#define IN4_PIN 15
+
+#define STEP_DELAY_MS 50
+
+
+// Full step sequence
+// const int step_sequence[4][4] = {
+//     {1, 0, 0, 1},
+//     {1, 1, 0, 0},
+//     {0, 1, 1, 0},
+//     {0, 0, 1, 1}
+// };
+
+const int step_sequence[8][4] = {
+    {1, 0, 0, 0}, // Step 0
+    {1, 1, 0, 0}, // Step 1
+    {0, 1, 0, 0}, // Step 2
+    {0, 1, 1, 0}, // Step 3
+    {0, 0, 1, 0}, // Step 4
+    {0, 0, 1, 1}, // Step 5
+    {0, 0, 0, 1}, // Step 6
+    {1, 0, 0, 1}  // Step 7
+};
 
 const uint8_t font5x7_basic[][5] = {
     {0x00, 0x00, 0x00, 0x00, 0x00}, // 0x20 ' ' (space)
@@ -402,6 +428,12 @@ static void adc_task()
     }
 }
 
+void set_motor_pins(int in1, int in2, int in3, int in4) {
+    gpio_set_level(IN1_PIN, in1);
+    gpio_set_level(IN2_PIN, in2);
+    gpio_set_level(IN3_PIN, in3);
+    gpio_set_level(IN4_PIN, in4);
+}
 
 void app_main()
 {
@@ -423,6 +455,14 @@ void app_main()
         .pull_up_en = 1,
     };
 
+    gpio_config_t motor_conf = {
+        .intr_type = GPIO_INTR_DISABLE,
+        .mode = GPIO_MODE_OUTPUT,
+        .pin_bit_mask = (1ULL<<IN1_PIN) | (1ULL<<IN2_PIN) | (1ULL<<IN3_PIN) | (1ULL<<IN4_PIN),
+        .pull_down_en = 0,
+        .pull_up_en = 0
+    };
+
     adc_config_t adc_conf = {
         .mode = ADC_READ_TOUT_MODE,
         .clk_div = 8,
@@ -431,6 +471,9 @@ void app_main()
 
 
     gpio_config(&io_conf);
+    gpio_config(&motor_conf);
+
+
     esp_err_t ret;
     ret = i2c_driver_install(I2C_MASTER_NUM, I2C_MODE_MASTER);
     if (ret != ESP_OK) {
@@ -472,17 +515,45 @@ void app_main()
     printf("Polling for button\n");
     fflush(stdout);  // Flush the output buffer
 
-    // while(1){
-    //     button_state = gpio_get_level(BUTTON_GPIO);
-    //     if(button_state != last_button_state){
-    //         if(button_state == 1){
-    //            printf("Actual Button pressed\n");
-    //             printf("Button state: %d\n", button_state); 
+    while(1){
+        button_state = gpio_get_level(BUTTON_GPIO);
+        if(button_state != last_button_state){
+            if(button_state == 1){
+               printf("Actual Button pressed\n");
+                printf("Button state: %d\n", button_state); 
+            }
+            fflush(stdout);
+            last_button_state = button_state;
+            vTaskDelay(1000 / portTICK_PERIOD_MS);  // Wait 1 second
+        }
+    }
+
+    // while (1) {
+    //     // Rotate clockwise
+    //     printf("Rotating Clockwise\n");
+    //     fflush(stdout);
+    //     for (int i = 0; i < 4096; i++) {  // 4096 steps for a full rotation
+    //         for (int step = 0; step < 8; step++) {
+    //             set_motor_pins(step_sequence[step][0], step_sequence[step][1], 
+    //                            step_sequence[step][2], step_sequence[step][3]);
+    //             vTaskDelay(STEP_DELAY_MS / portTICK_PERIOD_MS);
     //         }
-    //         fflush(stdout);
-    //         last_button_state = button_state;
-    //         vTaskDelay(1000 / portTICK_PERIOD_MS);  // Wait 1 second
     //     }
+        
+    //     vTaskDelay(1000 / portTICK_PERIOD_MS);  // Wait for 1 second
+
+    //     printf("Rotating Counter Clockwise\n");
+    //     fflush(stdout);
+    //     // Rotate counter-clockwise
+    //     for (int i = 0; i < 4096; i++) {
+    //         for (int step = 7; step >= 0; step--) {
+    //             set_motor_pins(step_sequence[step][0], step_sequence[step][1], 
+    //                            step_sequence[step][2], step_sequence[step][3]);
+    //             vTaskDelay(STEP_DELAY_MS / portTICK_PERIOD_MS);
+    //         }
+    //     }
+
+    //     vTaskDelay(1000 / portTICK_PERIOD_MS);  // Wait for 1 second
     // }
 
     xTaskCreate(adc_task, "adc_task", 1024, NULL, 5, NULL);
